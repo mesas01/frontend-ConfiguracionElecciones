@@ -1,14 +1,27 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import Login from "./pages/Login"
 import ParametrosBase from "./pages/ParametrosBase"
 import MetodoElectoralReglas from "./pages/MetodoElectoralReglas"
+import CircunscripcionesElegibilidad from "./pages/CircunscripcionesElegibilidad"
+import ProtectedRoute from "./components/ProtectedRoute"
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<ParametrosBase />} />
-        <Route path="/configuracion/parametros-base" element={<ParametrosBase />} />
-        <Route path="/configuracion/metodo-electoral" element={<MetodoElectoralReglas />} />
+        {/* Ruta pública */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Rutas protegidas — requieren JWT válido */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<Navigate to="/configuracion/parametros-base" replace />} />
+          <Route path="/configuracion/parametros-base" element={<ParametrosBase />} />
+          <Route path="/configuracion/metodo-electoral" element={<MetodoElectoralReglas />} />
+          <Route path="/configuracion/circunscripciones" element={<CircunscripcionesElegibilidad />} />
+        </Route>
+
+        {/* Catch-all */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   )

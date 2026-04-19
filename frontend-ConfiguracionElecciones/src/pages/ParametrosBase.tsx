@@ -1,20 +1,100 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Lock, ChevronDown, Clock, ChevronRight } from "lucide-react"
+import UserMenu from "../components/UserMenu"
+import {
+  loadConfiguracionPaso1Draft,
+  loadConfiguracionPaso2Draft,
+  loadConfiguracionPaso3Draft,
+  saveConfiguracionPaso1Draft,
+  saveConfiguracionPaso2Draft,
+  saveConfiguracionPaso3Draft,
+} from "../services/configuracionDraftService"
+import {
+  sanitizePaso2Draft,
+  sanitizePaso3Draft,
+} from "../services/electionConfigRules"
 
 export default function ParametrosBase() {
   const navigate = useNavigate()
 
-  const [nombreEleccion, setNombreEleccion] = useState("")
-  const [tipoEleccion, setTipoEleccion] = useState("")
-  const [estadoEleccion, setEstadoEleccion] = useState("Borrador")
-  const [fechaInicio, setFechaInicio] = useState("")
-  const [fechaCierre, setFechaCierre] = useState("")
-  const [jornadaExtendida, setJornadaExtendida] = useState(true)
-  const [horaApertura, setHoraApertura] = useState("08:00")
-  const [horaCierre, setHoraCierre] = useState("16:00")
-  const [votacionPresencial, setVotacionPresencial] = useState(true)
-  const [votacionRemota, setVotacionRemota] = useState(true)
+  const draftPaso1 = loadConfiguracionPaso1Draft()
+  const draftPaso2 = loadConfiguracionPaso2Draft()
+  const draftPaso3 = loadConfiguracionPaso3Draft()
+
+  const [nombreEleccion, setNombreEleccion] = useState(draftPaso1.nombreEleccion ?? "")
+  const [tipoEleccion, setTipoEleccion] = useState(draftPaso1.tipoEleccion ?? "")
+  const estadoEleccion = "BORRADOR"
+  const [fechaInicio, setFechaInicio] = useState(draftPaso1.fechaInicio ?? "")
+  const [fechaCierre, setFechaCierre] = useState(draftPaso1.fechaCierre ?? "")
+  const [jornadaExtendida, setJornadaExtendida] = useState(draftPaso1.jornadaExtendida ?? true)
+  const [horaApertura, setHoraApertura] = useState(draftPaso1.horaApertura ?? "08:00")
+  const [horaCierre, setHoraCierre] = useState(draftPaso1.horaCierre ?? "16:00")
+  const [votacionPresencial, setVotacionPresencial] = useState(
+    draftPaso1.votacionPresencial ?? true
+  )
+  const [votacionRemota, setVotacionRemota] = useState(draftPaso1.votacionRemota ?? true)
+  const [guardando, setGuardando] = useState(false)
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+  const [guardadoExitoso, setGuardadoExitoso] = useState(false)
+
+  function handleTipoEleccionChange(nextTipoEleccion: string) {
+    setTipoEleccion(nextTipoEleccion)
+
+    if (!nextTipoEleccion) return
+
+    const paso2Normalizado = sanitizePaso2Draft(nextTipoEleccion, draftPaso2)
+    const paso3Normalizado = sanitizePaso3Draft(
+      nextTipoEleccion,
+      paso2Normalizado.metodoSeleccionado,
+      draftPaso3
+    )
+
+    saveConfiguracionPaso2Draft(paso2Normalizado)
+    saveConfiguracionPaso3Draft(paso3Normalizado)
+  }
+
+  function buildPayload() {
+    return {
+      nombreEleccion,
+      tipoEleccion,
+      estadoEleccion,
+      fechaInicio,
+      fechaCierre,
+      jornadaExtendida,
+      horaApertura,
+      horaCierre,
+      votacionPresencial,
+      votacionRemota,
+    }
+  }
+
+  async function handleGuardarBorrador() {
+    setGuardando(true)
+    setErrorGuardado(null)
+    setGuardadoExitoso(false)
+
+    try {
+      saveConfiguracionPaso1Draft(buildPayload())
+      setGuardadoExitoso(true)
+    } catch (error) {
+      setErrorGuardado(
+        error instanceof Error ? error.message : "No se pudo guardar el avance local"
+      )
+      throw error
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function handleContinuar() {
+    try {
+      await handleGuardarBorrador()
+      navigate("/configuracion/metodo-electoral")
+    } catch {
+      // El error ya se muestra en pantalla.
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -40,9 +120,7 @@ export default function ParametrosBase() {
           <button className="text-gray-900 font-medium">Configuración</button>
         </nav>
 
-        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-semibold">
-          U
-        </div>
+        <UserMenu />
       </header>
 
       {/* Main */}
@@ -128,34 +206,26 @@ export default function ParametrosBase() {
               <div className="relative">
                 <select
                   value={tipoEleccion}
-                  onChange={(e) => setTipoEleccion(e.target.value)}
+                  onChange={(e) => handleTipoEleccionChange(e.target.value)}
                   className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-500 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
                 >
                   <option value="" disabled>Seleccionar tipo...</option>
-                  <option value="presidencial">Presidencial</option>
-                  <option value="legislativa">Legislativa</option>
-                  <option value="regional">Regional</option>
+                  <option value="PRESIDENCIAL">Presidencial</option>
+                  <option value="LEGISLATIVA">Legislativa</option>
+                  <option value="TERRITORIAL">Territorial</option>
                 </select>
                 <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
-            {/* Estado */}
+            {/* Estado fijo */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Estado de la Elección
               </label>
-              <div className="relative">
-                <select
-                  value={estadoEleccion}
-                  onChange={(e) => setEstadoEleccion(e.target.value)}
-                  className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
-                >
-                  <option value="Borrador">Borrador</option>
-                  <option value="Activa">Activa</option>
-                  <option value="Cerrada">Cerrada</option>
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <div className="flex items-center border border-gray-300 rounded-lg px-3 py-2 bg-gray-50">
+                <span className="flex-1 text-sm text-gray-700">Borrador</span>
+                <Lock size={14} className="text-gray-400" />
               </div>
             </div>
           </div>
@@ -332,13 +402,31 @@ export default function ParametrosBase() {
           </div>
         </div>
 
+        {(errorGuardado || guardadoExitoso) && (
+          <div
+            className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
+              errorGuardado
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-green-200 bg-green-50 text-green-700"
+            }`}
+          >
+            {errorGuardado || "Avance guardado localmente. Se enviará al final."}
+          </div>
+        )}
+
         {/* Bottom actions */}
         <div className="flex items-center justify-between">
-          <button className="px-5 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">
-            Guardar Borrador
+          <button
+            type="button"
+            onClick={handleGuardarBorrador}
+            disabled={guardando}
+            className="px-5 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {guardando ? "Guardando..." : "Guardar Borrador"}
           </button>
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => navigate("/")}
               className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 transition"
             >
@@ -346,10 +434,11 @@ export default function ParametrosBase() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/configuracion/metodo-electoral")}
-              className="px-5 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition flex items-center gap-1"
+              onClick={handleContinuar}
+              disabled={guardando}
+              className="px-5 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition flex items-center gap-1 disabled:cursor-not-allowed disabled:bg-red-300"
             >
-              Continuar al Paso 2
+              {guardando ? "Enviando..." : "Continuar al Paso 2"}
               <ChevronRight size={14} />
             </button>
           </div>
