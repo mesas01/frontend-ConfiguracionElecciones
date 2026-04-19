@@ -25,6 +25,7 @@ export default function ParametrosBase() {
   const [nombreEleccion, setNombreEleccion] = useState(draftPaso1.nombreEleccion ?? "")
   const [tipoEleccion, setTipoEleccion] = useState(draftPaso1.tipoEleccion ?? "")
   const estadoEleccion = "BORRADOR"
+  const today = new Date().toISOString().slice(0, 16)
   const [fechaInicio, setFechaInicio] = useState(draftPaso1.fechaInicio ?? "")
   const [fechaCierre, setFechaCierre] = useState(draftPaso1.fechaCierre ?? "")
   const [jornadaExtendida, setJornadaExtendida] = useState(draftPaso1.jornadaExtendida ?? true)
@@ -112,13 +113,6 @@ export default function ParametrosBase() {
             </p>
           </div>
         </div>
-
-        <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
-          <button className="hover:text-gray-900 transition">Elecciones</button>
-          <button className="hover:text-gray-900 transition">Resultados</button>
-          <button className="hover:text-gray-900 transition">Auditoría</button>
-          <button className="text-gray-900 font-medium">Configuración</button>
-        </nav>
 
         <UserMenu />
       </header>
@@ -248,6 +242,7 @@ export default function ParametrosBase() {
               <input
                 type="datetime-local"
                 value={fechaInicio}
+                min={today}
                 onChange={(e) => setFechaInicio(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
               />
@@ -259,6 +254,7 @@ export default function ParametrosBase() {
               <input
                 type="datetime-local"
                 value={fechaCierre}
+                min={fechaInicio || today}
                 onChange={(e) => setFechaCierre(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
               />

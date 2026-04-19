@@ -49,13 +49,6 @@ export default function Login() {
           </div>
         </div>
 
-        <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
-          <button className="hover:text-gray-900 transition">Elecciones</button>
-          <button className="hover:text-gray-900 transition">Resultados</button>
-          <button className="hover:text-gray-900 transition">Auditoría</button>
-          <button className="hover:text-gray-900 transition">Configuración</button>
-        </nav>
-
         {/* Placeholder avatar */}
         <div className="w-8 h-8 rounded-full bg-gray-200" />
       </header>
@@ -73,9 +66,6 @@ export default function Login() {
                 <Lock className="w-6 h-6 text-red-500" />
               </div>
               <h1 className="text-xl font-bold text-gray-900">Acceso al Sistema</h1>
-              <p className="text-sm text-gray-500 mt-1 text-center">
-                Ingresa tus credenciales de Keycloak para obtener el JWT y continuar
-              </p>
             </div>
 
             {/* Form */}
@@ -155,13 +145,7 @@ export default function Login() {
               </button>
             </form>
 
-            {/* Divider */}
-            <div className="border-t border-gray-100 mt-6 pt-4 text-center">
-              <p className="text-xs text-gray-400">
-                Autenticación gestionada por{" "}
-                <span className="font-semibold text-gray-500">Keycloak</span>
-              </p>
-            </div>
+
           </div>
 
           {/* Footer note */}

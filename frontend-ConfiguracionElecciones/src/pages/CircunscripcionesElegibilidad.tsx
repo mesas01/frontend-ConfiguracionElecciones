@@ -220,13 +220,6 @@ export default function CircunscripcionesElegibilidad() {
           </div>
         </div>
 
-        <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
-          <button className="hover:text-gray-900 transition">Elecciones</button>
-          <button className="hover:text-gray-900 transition">Resultados</button>
-          <button className="hover:text-gray-900 transition">Auditoría</button>
-          <button className="text-gray-900 font-medium">Configuración</button>
-        </nav>
-
         <UserMenu />
       </header>
 
