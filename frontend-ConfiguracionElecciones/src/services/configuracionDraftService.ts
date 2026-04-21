@@ -1,3 +1,9 @@
+import type {
+  ConfiguracionSenado,
+  ConfiguracionCamaraDepto,
+  ConfiguracionCamaraEspecial,
+} from "./electionConfigRules"
+
 const DRAFT_KEY = "sello_legitimo_configuracion_draft"
 
 export interface ConfiguracionPaso1Draft {
@@ -18,16 +24,19 @@ export interface ConfiguracionPaso2Draft {
   umbralElectoral: string
   metodoCurules: string
   numeroCurules: string
-  modeloCandidatura: string
+  modelosCandidatura: string[]
   votoBlancoHabilitado: boolean
   idiomaTargeton: string
+  configuracionSenado?: ConfiguracionSenado
+  configuracionCamara?: ConfiguracionCamaraDepto[]
+  configuracionCamaraEspeciales?: ConfiguracionCamaraEspecial[]
 }
 
 export interface ConfiguracionPaso3Draft {
   circunscripcionActiva: string
   edadDesde: string
   edadHasta: string
-  exencionSeleccionada: string
+  excencionesSeleccionadas: string[]
 }
 
 export interface ConfiguracionCompletaDraft

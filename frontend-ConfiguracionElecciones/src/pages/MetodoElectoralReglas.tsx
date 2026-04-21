@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronRight, ChevronDown, ChevronLeft } from "lucide-react"
+import { ChevronRight, ChevronDown, ChevronLeft, RotateCcw } from "lucide-react"
 import UserMenu from "../components/UserMenu"
 import {
   loadConfiguracionPaso1Draft,
@@ -12,9 +12,15 @@ import {
   getModelosCompatibles,
   getTipoEleccionPreset,
   sanitizePaso2Draft,
+  defaultConfiguracionSenado,
+  defaultConfiguracionCamara,
+  defaultConfiguracionCamaraEspeciales,
   type MetodoElectoral,
   type ModeloCandidatura,
   type Paso2Config,
+  type ConfiguracionSenado,
+  type ConfiguracionCamaraDepto,
+  type ConfiguracionCamaraEspecial,
 } from "../services/electionConfigRules"
 
 const metodos: { id: MetodoElectoral; titulo: string; codigo: string; desc: string }[] = [
@@ -66,9 +72,22 @@ const modelos: {
   },
 ]
 
+function clampCurules(val: string): string {
+  const n = parseInt(val, 10)
+  if (isNaN(n) || n < 1) return "1"
+  return String(n)
+}
+
+function clampUmbral(val: string): string {
+  const n = parseFloat(val)
+  if (isNaN(n) || n < 0) return "0"
+  if (n > 100) return "100"
+  return val
+}
+
 function getModeloHelperText(metodoSeleccionado: MetodoElectoral) {
   if (metodoSeleccionado === "ME-03") {
-    return "En proporcional solo aplican listas abiertas o cerradas. Candidato unico no tiene sentido aqui."
+    return "En proporcional puedes elegir listas abiertas, cerradas, o ambas a la vez."
   }
 
   return "Para mayoría simple, segunda vuelta y voto alternativo solo aplica candidato unico."
@@ -87,8 +106,8 @@ export default function MetodoElectoralReglas() {
   )
   const [umbralElectoral, setUmbralElectoral] = useState(paso2Inicial.umbralElectoral)
   const [metodoCurules, setMetodoCurules] = useState(paso2Inicial.metodoCurules)
-  const [modeloCandidatura, setModeloCandidatura] = useState<ModeloCandidatura>(
-    paso2Inicial.modeloCandidatura
+  const [modelosCandidatura, setModelosCandidatura] = useState<ModeloCandidatura[]>(
+    paso2Inicial.modelosCandidatura
   )
   const [votoBlancoHabilitado, setVotoBlancoHabilitado] = useState(
     paso2Inicial.votoBlancoHabilitado
@@ -104,13 +123,26 @@ export default function MetodoElectoralReglas() {
     presetTipoEleccion?.modelosCompatibles ?? getModelosCompatibles(metodoSeleccionado)
   const metodoBloqueado = presetTipoEleccion?.lockMethod ?? false
   const modeloBloqueado = presetTipoEleccion?.lockModelo ?? false
+  const esLegislativa = draftPaso1.tipoEleccion === "LEGISLATIVA"
+
+  // Estado específico para elección legislativa
+  const [tabLegislativa, setTabLegislativa] = useState<"senado" | "camara">("senado")
+  const [configSenado, setConfigSenado] = useState<ConfiguracionSenado>(
+    paso2Inicial.configuracionSenado ?? defaultConfiguracionSenado()
+  )
+  const [configCamara, setConfigCamara] = useState<ConfiguracionCamaraDepto[]>(
+    paso2Inicial.configuracionCamara ?? defaultConfiguracionCamara()
+  )
+  const [configCamaraEspeciales, setConfigCamaraEspeciales] = useState<ConfiguracionCamaraEspecial[]>(
+    paso2Inicial.configuracionCamaraEspeciales ?? defaultConfiguracionCamaraEspeciales()
+  )
 
   function applyPaso2State(next: Paso2Config) {
     setMetodoSeleccionado(next.metodoSeleccionado)
     setUmbralElectoral(next.umbralElectoral)
     setMetodoCurules(next.metodoCurules)
     setNumeroCurules(next.numeroCurules)
-    setModeloCandidatura(next.modeloCandidatura)
+    setModelosCandidatura(next.modelosCandidatura)
     setVotoBlancoHabilitado(next.votoBlancoHabilitado)
     setIdiomaTargeton(next.idiomaTargeton)
   }
@@ -121,7 +153,7 @@ export default function MetodoElectoralReglas() {
       umbralElectoral,
       metodoCurules,
       numeroCurules,
-      modeloCandidatura,
+      modelosCandidatura,
       votoBlancoHabilitado,
       idiomaTargeton,
       ...overrides,
@@ -133,13 +165,40 @@ export default function MetodoElectoralReglas() {
     applyPaso2State(normalizeCurrentPaso2({ metodoSeleccionado: nextMetodo }))
   }
 
-  function handleModeloSeleccion(nextModelo: ModeloCandidatura) {
-    if (modeloBloqueado || !modelosCompatibles.includes(nextModelo)) return
-    applyPaso2State(normalizeCurrentPaso2({ modeloCandidatura: nextModelo }))
+  function handleModeloToggle(modelo: ModeloCandidatura) {
+    if (modeloBloqueado || !modelosCompatibles.includes(modelo)) return
+
+    let nuevosModelos: ModeloCandidatura[]
+
+    if (modelo === "unico") {
+      // Candidato único es exclusivo: deselecciona los demás
+      nuevosModelos = ["unico"]
+    } else {
+      // Listas de partido: se pueden combinar entre sí, pero excluyen a "unico"
+      const sinUnico = modelosCandidatura.filter((m) => m !== "unico")
+      if (sinUnico.includes(modelo)) {
+        // Desmarcar: solo si queda al menos uno seleccionado
+        const restantes = sinUnico.filter((m) => m !== modelo)
+        nuevosModelos = restantes.length > 0 ? restantes : sinUnico
+      } else {
+        nuevosModelos = [...sinUnico, modelo]
+      }
+    }
+
+    applyPaso2State(normalizeCurrentPaso2({ modelosCandidatura: nuevosModelos }))
   }
 
-  function buildPayload() {
-    return normalizeCurrentPaso2()
+  function buildPayload(): Paso2Config {
+    const base = normalizeCurrentPaso2()
+    if (esLegislativa) {
+      return {
+        ...base,
+        configuracionSenado: configSenado,
+        configuracionCamara: configCamara,
+        configuracionCamaraEspeciales: configCamaraEspeciales,
+      }
+    }
+    return base
   }
 
   async function handleGuardarBorrador() {
@@ -288,116 +347,377 @@ export default function MetodoElectoralReglas() {
             <p className="text-sm text-gray-600">{metodoConfig.descripcion}</p>
           </div>
 
-          {metodoConfig.usaConteoDirecto && (
-            <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 mb-4">
-              Regla activa: conteo directo de votos. No aplica umbral electoral ni método de curules.
-            </div>
-          )}
-
-          {metodoConfig.umbralFijo && (
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Umbral Electoral Implícito
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    value={metodoConfig.umbralFijo}
-                    readOnly
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 pr-8 bg-gray-50"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-                    %
-                  </span>
-                </div>
+          {/* ── Rama LEGISLATIVA: Senado + Cámara ── */}
+          {esLegislativa ? (
+            <div>
+              {/* Tabs */}
+              <div className="flex gap-1 mb-5 border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setTabLegislativa("senado")}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition ${
+                    tabLegislativa === "senado"
+                      ? "border-red-500 text-red-600 bg-red-50"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="text-base"></span>
+                  Senado de la República
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTabLegislativa("camara")}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 transition ${
+                    tabLegislativa === "camara"
+                      ? "border-red-500 text-red-600 bg-red-50"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="text-base"></span>
+                  Cámara de Representantes
+                </button>
               </div>
-              <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
-                Configuración clave: si nadie supera el 50%, el sistema debe preparar una segunda vuelta.
-              </div>
-            </div>
-          )}
 
-          {(metodoConfig.usaUmbralEditable || metodoConfig.usaMetodoCurules || metodoConfig.usaNumeroCurules) && (
-            <div className="grid grid-cols-2 gap-4 mb-3">
-              {metodoConfig.usaUmbralEditable && (
+              {/* ── Tab: SENADO ── */}
+              {tabLegislativa === "senado" && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Umbral Electoral (%)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={umbralElectoral}
-                      onChange={(e) => setUmbralElectoral(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 pr-8 focus:outline-none focus:ring-2 focus:ring-red-300"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-                      %
-                    </span>
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 mb-5">
+                    <p className="text-xs font-semibold text-blue-800 mb-0.5">Senado de la República — Circunscripción Nacional</p>
+                    <p className="text-xs text-blue-700">
+                      El Senado se elige en circunscripción nacional. Todos los partidos compiten en el ámbito del territorio colombiano.
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">
-                    Ejemplo: 3% minimo para participar en la asignación de curules.
-                  </p>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Umbral Electoral (%)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={configSenado.umbral}
+                          onChange={(e) => setConfigSenado((p) => ({ ...p, umbral: clampUmbral(e.target.value) }))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 pr-8 focus:outline-none focus:ring-2 focus:ring-red-300"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">Mínimo para asignar curules. Ej: 3%.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Número de Curules <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={configSenado.curules}
+                        onChange={(e) => setConfigSenado((p) => ({ ...p, curules: clampCurules(e.target.value) }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Total de senadores a elegir.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Fórmula de Asignación <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={configSenado.formula}
+                          onChange={(e) => setConfigSenado((p) => ({ ...p, formula: e.target.value }))}
+                          className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
+                        >
+                          <option value="dhondt">D'Hondt</option>
+                          <option value="sainte-lague">Sainte-Laguë</option>
+                        </select>
+                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {metodoConfig.usaNumeroCurules && (
+              {/* ── Tab: CÁMARA DE REPRESENTANTES ── */}
+              {tabLegislativa === "camara" && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Numero de Curules <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={numeroCurules}
-                    onChange={(e) => setNumeroCurules(e.target.value)}
-                    placeholder="Ej: 100"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
-                  />
-                </div>
-              )}
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 mb-5">
+                    <p className="text-xs font-semibold text-amber-800 mb-0.5">Cámara de Representantes — Circunscripciones Territoriales y Especiales</p>
+                    <p className="text-xs text-amber-700">
+                      Cada departamento tiene una circunscripción propia. Asigna el número de curules y el umbral para cada uno.
+                    </p>
+                  </div>
 
-              {metodoConfig.usaMetodoCurules && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Método de Asignación de Curules <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={metodoCurules}
-                      onChange={(e) => setMetodoCurules(e.target.value)}
-                      className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
+                  {/* Resumen + Botón reset */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5">
+                        <p className="text-xs text-gray-500">
+                          Total territorial:{" "}
+                          <span className="font-bold text-gray-900">
+                            {configCamara.reduce((acc, d) => acc + (parseInt(d.curules) || 0), 0)} curules
+                          </span>
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5">
+                        <p className="text-xs text-gray-500">
+                          Especiales:{" "}
+                          <span className="font-bold text-gray-900">
+                            {configCamaraEspeciales
+                              .filter((e) => e.habilitada)
+                              .reduce((acc, e) => acc + (parseInt(e.curules) || 0), 0)}{" "}
+                            curules
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfigCamara(defaultConfiguracionCamara())
+                        setConfigCamaraEspeciales(defaultConfiguracionCamaraEspeciales())
+                      }}
+                      className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition"
                     >
-                      <option value="dhondt">D'Hondt</option>
-                      <option value="sainte-lague">Sainte-Laguë</option>
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <RotateCcw size={12} />
+                      Restaurar valores por defecto
+                    </button>
+                  </div>
+
+                  {/* Tabla de departamentos */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden mb-4">
+                    {/* Header fijo */}
+                    <div className="grid grid-cols-[1fr_120px_120px] bg-gray-100 border-b border-gray-200">
+                      <div className="px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Departamento</div>
+                      <div className="px-3 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide text-center">Curules</div>
+                      <div className="px-3 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide text-center">Umbral (%)</div>
+                    </div>
+
+                    {/* Filas scrollables */}
+                    <div className="overflow-y-auto" style={{ maxHeight: "320px" }}>
+                      {configCamara.map((depto, idx) => (
+                        <div
+                          key={depto.departamento}
+                          className={`grid grid-cols-[1fr_120px_120px] items-center border-b border-gray-100 last:border-0 ${
+                            idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                          }`}
+                        >
+                          <div className="px-4 py-2 text-sm text-gray-800 font-medium">{depto.departamento}</div>
+                          <div className="px-3 py-2">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={depto.curules}
+                              onChange={(e) => {
+                                const updated = [...configCamara]
+                                updated[idx] = { ...updated[idx], curules: clampCurules(e.target.value) }
+                                setConfigCamara(updated)
+                              }}
+                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
+                            />
+                          </div>
+                          <div className="px-3 py-2">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={depto.umbral}
+                                onChange={(e) => {
+                                  const updated = [...configCamara]
+                                  updated[idx] = { ...updated[idx], umbral: clampUmbral(e.target.value) }
+                                  setConfigCamara(updated)
+                                }}
+                                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center text-gray-700 pr-6 focus:outline-none focus:ring-2 focus:ring-red-300"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Circunscripciones especiales */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-100 border-b border-gray-200 px-4 py-2.5">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Circunscripciones Especiales</p>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {configCamaraEspeciales.map((esp, idx) => (
+                        <div key={esp.nombre} className="flex items-center gap-4 px-4 py-3">
+                          {/* Toggle habilitada */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = [...configCamaraEspeciales]
+                              updated[idx] = { ...updated[idx], habilitada: !updated[idx].habilitada }
+                              setConfigCamaraEspeciales(updated)
+                            }}
+                            className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+                              esp.habilitada ? "bg-red-500" : "bg-gray-300"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                esp.habilitada ? "translate-x-4.5" : "translate-x-0.5"
+                              }`}
+                            />
+                          </button>
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold ${esp.habilitada ? "text-gray-800" : "text-gray-400"}`}>
+                              {esp.nombre}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">{esp.descripcion}</p>
+                          </div>
+                          {/* Curules */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-gray-500">Curules:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              disabled={!esp.habilitada}
+                              value={esp.curules}
+                              onChange={(e) => {
+                                const updated = [...configCamaraEspeciales]
+                                updated[idx] = { ...updated[idx], curules: clampCurules(e.target.value) }
+                                setConfigCamaraEspeciales(updated)
+                              }}
+                              className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-center text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:bg-gray-100 disabled:text-gray-400"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
-          )}
 
-          {metodoConfig.usaRedistribucion && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-gray-200 p-4 bg-white">
-                <p className="text-sm font-semibold text-gray-900 mb-1">Eliminación sucesiva</p>
-                <p className="text-xs text-gray-500">
-                  El sistema elimina al candidato con menos votos en cada ronda.
-                </p>
-              </div>
-              <div className="rounded-xl border border-gray-200 p-4 bg-white">
-                <p className="text-sm font-semibold text-gray-900 mb-1">Redistribución de preferencias</p>
-                <p className="text-xs text-gray-500">
-                  Los votos se reasignan según el siguiente orden marcado por el votante.
-                </p>
-              </div>
-            </div>
+          ) : (
+            /* ── Rama GENÉRICA para otros tipos de elección ── */
+            <>
+              {metodoConfig.usaConteoDirecto && (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 mb-4">
+                  Regla activa: conteo directo de votos. No aplica umbral electoral ni método de curules.
+                </div>
+              )}
+
+              {metodoConfig.umbralFijo && (
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Umbral Electoral Implícito
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={metodoConfig.umbralFijo}
+                        readOnly
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 pr-8 bg-gray-50"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                    Configuración clave: si nadie supera el 50%, el sistema debe preparar una segunda vuelta.
+                  </div>
+                </div>
+              )}
+
+              {(metodoConfig.usaUmbralEditable || metodoConfig.usaMetodoCurules || metodoConfig.usaNumeroCurules) && (
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  {metodoConfig.usaUmbralEditable && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Umbral Electoral (%)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={umbralElectoral}
+                          onChange={(e) => setUmbralElectoral(clampUmbral(e.target.value))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 pr-8 focus:outline-none focus:ring-2 focus:ring-red-300"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                          %
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Ejemplo: 3% minimo para participar en la asignación de curules.
+                      </p>
+                    </div>
+                  )}
+
+                  {metodoConfig.usaNumeroCurules && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Numero de Curules <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={numeroCurules}
+                        onChange={(e) => setNumeroCurules(clampCurules(e.target.value))}
+                        placeholder="Ej: 100"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
+                      />
+                    </div>
+                  )}
+
+                  {metodoConfig.usaMetodoCurules && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Método de Asignación de Curules <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={metodoCurules}
+                          onChange={(e) => setMetodoCurules(e.target.value)}
+                          className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
+                        >
+                          <option value="dhondt">D'Hondt</option>
+                          <option value="sainte-lague">Sainte-Laguë</option>
+                        </select>
+                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {metodoConfig.usaRedistribucion && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-xl border border-gray-200 p-4 bg-white">
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Eliminación sucesiva</p>
+                    <p className="text-xs text-gray-500">
+                      El sistema elimina al candidato con menos votos en cada ronda.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 p-4 bg-white">
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Redistribución de preferencias</p>
+                    <p className="text-xs text-gray-500">
+                      Los votos se reasignan según el siguiente orden marcado por el votante.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -411,13 +731,14 @@ export default function MetodoElectoralReglas() {
 
           <div className="grid grid-cols-3 gap-3">
             {modelos.map((modelo) => {
-              const selected = modeloCandidatura === modelo.id
+              const esMultiSeleccionable = modelo.id !== "unico"
+              const selected = modelosCandidatura.includes(modelo.id)
               const disabled = !modelosCompatibles.includes(modelo.id)
               return (
                 <button
                   key={modelo.id}
                   type="button"
-                  onClick={() => handleModeloSeleccion(modelo.id)}
+                  onClick={() => handleModeloToggle(modelo.id)}
                   disabled={disabled || modeloBloqueado}
                   className={`text-left border rounded-xl p-4 transition ${
                     selected
@@ -426,11 +747,30 @@ export default function MetodoElectoralReglas() {
                   } ${disabled ? "opacity-45 cursor-not-allowed" : ""}`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 ${
-                        selected ? "bg-red-500 border-red-500" : "border-gray-300"
-                      }`}
-                    />
+                    {esMultiSeleccionable ? (
+                      // Checkbox cuadrado para listas de partido (pueden combinarse)
+                      <div
+                        className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                          selected ? "bg-red-500 border-red-500" : "border-gray-300"
+                        }`}
+                      >
+                        {selected && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                            <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                    ) : (
+                      // Radio circular para candidato único (excluyente)
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
+                          selected ? "bg-red-500 border-red-500" : "border-gray-300"
+                        }`}
+                      />
+                    )}
+                    {esMultiSeleccionable && !disabled && (
+                      <span className="text-[9px] text-red-400 font-semibold tracking-wide">MULTI</span>
+                    )}
                   </div>
                   <p className="text-xs font-semibold text-gray-800 mb-1">{modelo.titulo}</p>
                   <p className="text-[11px] text-gray-500 leading-snug">{modelo.descripcion}</p>
@@ -439,7 +779,14 @@ export default function MetodoElectoralReglas() {
             })}
           </div>
 
-          <p className="text-xs text-gray-400 mt-3">{getModeloHelperText(metodoSeleccionado)}</p>
+          {metodoSeleccionado === "ME-03" && (
+            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              Puedes seleccionar <strong>Lista Abierta</strong>, <strong>Lista Cerrada</strong> o <strong>ambas</strong> simultáneamente.
+              Al menos una debe quedar seleccionada.
+            </div>
+          )}
+
+          <p className="text-xs text-gray-400 mt-2">{getModeloHelperText(metodoSeleccionado)}</p>
         </div>
 
         <div className="bg-white border rounded-xl p-6 mb-6">

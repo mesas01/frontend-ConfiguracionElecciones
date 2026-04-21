@@ -23,6 +23,13 @@ import {
 
 type EstadoCircunscripcion = "INACTIVA" | "ACTIVA" | "INHABILITADA"
 
+function clampEdad(val: string): string {
+  const n = parseInt(val, 10)
+  if (isNaN(n) || n < 0) return "0"
+  if (n > 120) return "120"
+  return String(n)
+}
+
 interface Circunscripcion {
   id: CircunscripcionId
   titulo: string
@@ -179,8 +186,8 @@ export default function CircunscripcionesElegibilidad() {
   )
   const [edadDesde, setEdadDesde] = useState(paso3Inicial.edadDesde)
   const [edadHasta, setEdadHasta] = useState(paso3Inicial.edadHasta)
-  const [exencionSeleccionada, setExencionSeleccionada] = useState(
-    paso3Inicial.exencionSeleccionada
+  const [excencionesSeleccionadas, setExcencionesSeleccionadas] = useState<string[]>(
+    paso3Inicial.excencionesSeleccionadas
   )
   const [guardando, setGuardando] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
@@ -259,7 +266,7 @@ export default function CircunscripcionesElegibilidad() {
         paso3Inicial.circunscripcionActiva,
       edadDesde,
       edadHasta,
-      exencionSeleccionada,
+      excencionesSeleccionadas,
     })
   }
 
@@ -471,7 +478,7 @@ export default function CircunscripcionesElegibilidad() {
                     min="0"
                     max="120"
                     value={edadDesde}
-                    onChange={(e) => setEdadDesde(e.target.value)}
+                    onChange={(e) => setEdadDesde(clampEdad(e.target.value))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
                   />
                 </div>
@@ -482,7 +489,7 @@ export default function CircunscripcionesElegibilidad() {
                     min="0"
                     max="120"
                     value={edadHasta}
-                    onChange={(e) => setEdadHasta(e.target.value)}
+                    onChange={(e) => setEdadHasta(clampEdad(e.target.value))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-300"
                   />
                 </div>
@@ -497,32 +504,56 @@ export default function CircunscripcionesElegibilidad() {
                 Exenciones Automáticas
               </p>
               <div className="flex flex-col gap-2">
-                {exenciones.map((ex) => (
-                  <button
-                    key={ex}
-                    type="button"
-                    onClick={() => setExencionSeleccionada(ex)}
-                    className="flex items-center gap-2 text-left group"
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition ${
-                        exencionSeleccionada === ex
-                          ? "bg-red-500 border-red-500"
-                          : "border-gray-300"
-                      }`}
-                    />
-                    <span
-                      className={`text-xs transition ${
-                        exencionSeleccionada === ex
-                          ? "text-gray-800 font-medium"
-                          : "text-gray-500"
-                      }`}
+                {exenciones.map((ex) => {
+                  const seleccionada = excencionesSeleccionadas.includes(ex)
+                  return (
+                    <button
+                      key={ex}
+                      type="button"
+                      onClick={() =>
+                        setExcencionesSeleccionadas((prev) =>
+                          seleccionada
+                            ? prev.filter((e) => e !== ex)
+                            : [...prev, ex]
+                        )
+                      }
+                      className="flex items-center gap-2 text-left group"
                     >
-                      {ex}
-                    </span>
-                  </button>
-                ))}
+                      <div
+                        className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition ${
+                          seleccionada
+                            ? "bg-red-500 border-red-500"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        {seleccionada && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                            <path
+                              d="M1.5 5l2.5 2.5 4.5-4.5"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs transition ${
+                          seleccionada ? "text-gray-800 font-medium" : "text-gray-500"
+                        }`}
+                      >
+                        {ex}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
+              {excencionesSeleccionadas.length === 0 && (
+                <p className="text-xs text-red-400 mt-2">
+                  Selecciona al menos una exención automática.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -591,6 +622,7 @@ export default function CircunscripcionesElegibilidad() {
                 { label: "Inicio", key: "fechaInicioJornada" },
                 { label: "Cierre", key: "fechaCierreJornada" },
                 { label: "Documento no votable", key: "documentoNoVotable" },
+                { label: "Exenciones", key: "excencionesHabilitadas" },
               ].map(({ label, key }) =>
                 getResumenValor(key, datosBorrador[key]) != null ? (
                   <div key={key} className="flex gap-1.5 text-xs">

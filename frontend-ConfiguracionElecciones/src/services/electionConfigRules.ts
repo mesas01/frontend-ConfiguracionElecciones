@@ -2,21 +2,111 @@ export type MetodoElectoral = "ME-01" | "ME-02" | "ME-03" | "ME-04"
 export type ModeloCandidatura = "unico" | "abierta" | "cerrada"
 export type CircunscripcionId = "nacional" | "territorial" | "especiales"
 
+export interface ConfiguracionSenado {
+  umbral: string
+  curules: string
+  formula: string
+}
+
+export interface ConfiguracionCamaraDepto {
+  departamento: string
+  curules: string
+  umbral: string
+}
+
+export interface ConfiguracionCamaraEspecial {
+  nombre: string
+  descripcion: string
+  curules: string
+  habilitada: boolean
+}
+
+export const DEPARTAMENTOS_COLOMBIA: { nombre: string; defaultCurules: number }[] = [
+  { nombre: "Amazonas", defaultCurules: 2 },
+  { nombre: "Antioquia", defaultCurules: 17 },
+  { nombre: "Arauca", defaultCurules: 2 },
+  { nombre: "Atlántico", defaultCurules: 9 },
+  { nombre: "Bogotá D.C.", defaultCurules: 18 },
+  { nombre: "Bolívar", defaultCurules: 7 },
+  { nombre: "Boyacá", defaultCurules: 6 },
+  { nombre: "Caldas", defaultCurules: 5 },
+  { nombre: "Caquetá", defaultCurules: 2 },
+  { nombre: "Casanare", defaultCurules: 2 },
+  { nombre: "Cauca", defaultCurules: 5 },
+  { nombre: "Cesar", defaultCurules: 5 },
+  { nombre: "Chocó", defaultCurules: 2 },
+  { nombre: "Córdoba", defaultCurules: 7 },
+  { nombre: "Cundinamarca", defaultCurules: 7 },
+  { nombre: "Guainía", defaultCurules: 2 },
+  { nombre: "Guaviare", defaultCurules: 2 },
+  { nombre: "Huila", defaultCurules: 5 },
+  { nombre: "La Guajira", defaultCurules: 3 },
+  { nombre: "Magdalena", defaultCurules: 6 },
+  { nombre: "Meta", defaultCurules: 3 },
+  { nombre: "Nariño", defaultCurules: 6 },
+  { nombre: "Norte de Santander", defaultCurules: 6 },
+  { nombre: "Putumayo", defaultCurules: 2 },
+  { nombre: "Quindío", defaultCurules: 3 },
+  { nombre: "Risaralda", defaultCurules: 4 },
+  { nombre: "San Andrés y Providencia", defaultCurules: 2 },
+  { nombre: "Santander", defaultCurules: 8 },
+  
+  { nombre: "Tolima", defaultCurules: 6 },
+  { nombre: "Valle del Cauca", defaultCurules: 13 },
+  { nombre: "Vaupés", defaultCurules: 2 },
+  { nombre: "Vichada", defaultCurules: 2 },
+]
+
+export const CIRCUNSCRIPCIONES_ESPECIALES_CAMARA: {
+  nombre: string
+  descripcion: string
+  defaultCurules: number
+}[] = [
+  { nombre: "Comunidades Afrocolombianas", descripcion: "Minorías étnicas afrocolombianas y comunidades negras", defaultCurules: 2 },
+  { nombre: "Comunidades Indígenas", descripcion: "Resguardos y territorios indígenas reconocidos", defaultCurules: 1 },
+  { nombre: "Colombianos en el Exterior", descripcion: "Ciudadanos colombianos residentes fuera del país", defaultCurules: 1 },
+  { nombre: "Minorías Políticas", descripcion: "Partidos y movimientos de minorías sin representación regular", defaultCurules: 1 },
+]
+
+export function defaultConfiguracionSenado(): ConfiguracionSenado {
+  return { umbral: "3.0", curules: "100", formula: "dhondt" }
+}
+
+export function defaultConfiguracionCamara(): ConfiguracionCamaraDepto[] {
+  return DEPARTAMENTOS_COLOMBIA.map((d) => ({
+    departamento: d.nombre,
+    curules: String(d.defaultCurules),
+    umbral: "0",
+  }))
+}
+
+export function defaultConfiguracionCamaraEspeciales(): ConfiguracionCamaraEspecial[] {
+  return CIRCUNSCRIPCIONES_ESPECIALES_CAMARA.map((c) => ({
+    nombre: c.nombre,
+    descripcion: c.descripcion,
+    curules: String(c.defaultCurules),
+    habilitada: true,
+  }))
+}
+
 export interface Paso2Config {
   metodoSeleccionado: MetodoElectoral
   umbralElectoral: string
   metodoCurules: string
   numeroCurules: string
-  modeloCandidatura: ModeloCandidatura
+  modelosCandidatura: ModeloCandidatura[]
   votoBlancoHabilitado: boolean
   idiomaTargeton: string
+  configuracionSenado?: ConfiguracionSenado
+  configuracionCamara?: ConfiguracionCamaraDepto[]
+  configuracionCamaraEspeciales?: ConfiguracionCamaraEspecial[]
 }
 
 export interface Paso3Config {
   circunscripcionActiva: CircunscripcionId
   edadDesde: string
   edadHasta: string
-  exencionSeleccionada: string
+  excencionesSeleccionadas: string[]
 }
 
 type Paso2DraftInput = {
@@ -24,22 +114,25 @@ type Paso2DraftInput = {
   umbralElectoral?: string
   metodoCurules?: string
   numeroCurules?: string
-  modeloCandidatura?: string
+  modelosCandidatura?: string[]
   votoBlancoHabilitado?: boolean
   idiomaTargeton?: string
+  configuracionSenado?: ConfiguracionSenado
+  configuracionCamara?: ConfiguracionCamaraDepto[]
+  configuracionCamaraEspeciales?: ConfiguracionCamaraEspecial[]
 }
 
 type Paso3DraftInput = {
   circunscripcionActiva?: string
   edadDesde?: string
   edadHasta?: string
-  exencionSeleccionada?: string
+  excencionesSeleccionadas?: string[]
 }
 
 interface TipoEleccionPreset {
   metodo: MetodoElectoral
   modelosCompatibles: ModeloCandidatura[]
-  defaultModelo: ModeloCandidatura
+  defaultModelos: ModeloCandidatura[]
   circunscripcionesCompatibles: CircunscripcionId[]
   defaultCircunscripcion: CircunscripcionId
   lockMethod: boolean
@@ -66,7 +159,7 @@ const tipoEleccionPresets: Partial<Record<string, TipoEleccionPreset>> = {
   PRESIDENCIAL: {
     metodo: "ME-02",
     modelosCompatibles: ["unico"],
-    defaultModelo: "unico",
+    defaultModelos: ["unico"],
     circunscripcionesCompatibles: ["nacional"],
     defaultCircunscripcion: "nacional",
     lockMethod: true,
@@ -78,7 +171,7 @@ const tipoEleccionPresets: Partial<Record<string, TipoEleccionPreset>> = {
   LEGISLATIVA: {
     metodo: "ME-03",
     modelosCompatibles: ["abierta", "cerrada"],
-    defaultModelo: "abierta",
+    defaultModelos: ["abierta"],
     circunscripcionesCompatibles: ["territorial", "nacional", "especiales"],
     defaultCircunscripcion: "territorial",
     lockMethod: true,
@@ -90,7 +183,7 @@ const tipoEleccionPresets: Partial<Record<string, TipoEleccionPreset>> = {
   TERRITORIAL: {
     metodo: "ME-01",
     modelosCompatibles: ["unico"],
-    defaultModelo: "unico",
+    defaultModelos: ["unico"],
     circunscripcionesCompatibles: ["territorial"],
     defaultCircunscripcion: "territorial",
     lockMethod: true,
@@ -188,19 +281,37 @@ export function sanitizePaso2Draft(tipoEleccion: string | undefined, draft: Paso
   const preset = getTipoEleccionPreset(tipoEleccion)
   const metodoSeleccionado = preset?.metodo ?? (isMetodoElectoral(draft.metodoSeleccionado) ? draft.metodoSeleccionado : "ME-03")
   const modelosCompatibles = preset?.modelosCompatibles ?? getModelosCompatibles(metodoSeleccionado)
-  const draftModelo = isModeloCandidatura(draft.modeloCandidatura) ? draft.modeloCandidatura : undefined
-  const modeloCandidatura = draftModelo && modelosCompatibles.includes(draftModelo)
-    ? draftModelo
-    : preset?.defaultModelo ?? modelosCompatibles[0]
+
+  // Filtrar los modelos del draft que sean validos y compatibles
+  const draftModelos = (draft.modelosCandidatura ?? []).filter(
+    (m): m is ModeloCandidatura => isModeloCandidatura(m) && modelosCompatibles.includes(m as ModeloCandidatura)
+  )
+  const modelosCandidatura: ModeloCandidatura[] =
+    draftModelos.length > 0 ? draftModelos : preset?.defaultModelos ?? [modelosCompatibles[0]]
+
+  const esLegislativa = tipoEleccion === "LEGISLATIVA"
 
   return {
     metodoSeleccionado,
     umbralElectoral: sanitizeUmbral(metodoSeleccionado, draft.umbralElectoral),
     metodoCurules: sanitizeMetodoCurules(metodoSeleccionado, draft.metodoCurules),
     numeroCurules: metodoSeleccionado === "ME-03" ? draft.numeroCurules?.trim() || "1" : "1",
-    modeloCandidatura,
+    modelosCandidatura,
     votoBlancoHabilitado: draft.votoBlancoHabilitado ?? false,
     idiomaTargeton: draft.idiomaTargeton ?? "es-CO",
+    configuracionSenado: draft.configuracionSenado ?? (esLegislativa ? defaultConfiguracionSenado() : undefined),
+    configuracionCamara: esLegislativa
+      ? DEPARTAMENTOS_COLOMBIA.map((d) => {
+          const existing = (draft.configuracionCamara ?? []).find((c) => c.departamento === d.nombre)
+          return existing ?? { departamento: d.nombre, curules: String(d.defaultCurules), umbral: "0" }
+        })
+      : undefined,
+    configuracionCamaraEspeciales: esLegislativa
+      ? CIRCUNSCRIPCIONES_ESPECIALES_CAMARA.map((ce) => {
+          const existing = (draft.configuracionCamaraEspeciales ?? []).find((c) => c.nombre === ce.nombre)
+          return existing ?? { nombre: ce.nombre, descripcion: ce.descripcion, curules: String(ce.defaultCurules), habilitada: true }
+        })
+      : undefined,
   }
 }
 
@@ -222,7 +333,9 @@ export function sanitizePaso3Draft(
     circunscripcionActiva,
     edadDesde: draft.edadDesde ?? "18",
     edadHasta: draft.edadHasta ?? "65",
-    exencionSeleccionada:
-      draft.exencionSeleccionada ?? "Personal Activo de Fuerzas Militares y Policía",
+    excencionesSeleccionadas:
+      Array.isArray(draft.excencionesSeleccionadas) && draft.excencionesSeleccionadas.length > 0
+        ? draft.excencionesSeleccionadas
+        : ["Personal Activo de Fuerzas Militares y Policía"],
   }
 }

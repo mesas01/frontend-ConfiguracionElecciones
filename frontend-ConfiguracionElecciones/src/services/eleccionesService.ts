@@ -82,9 +82,11 @@ function buildMicroservicioPayload(draft: ConfiguracionCompletaDraft): Record<st
     jerarquiaGeografica: ["PAIS", "DEPARTAMENTO", "MUNICIPIO", "PUESTO_DE_VOTACION", "MESA"],
     circunscripcionesEspeciales,
 
-    // reglasElegibilidad no puede quedar vacío (@NotBlank en el backend)
-    reglasElegibilidad:
-      (draft.exencionSeleccionada ?? "").trim().toUpperCase() || "SIN_EXENCIONES",
+    // Exenciones: array de strings en mayúsculas. Si viene vacío se deja ["SIN_EXENCIONES"].
+    excencionesHabilitadas:
+      Array.isArray(draft.excencionesSeleccionadas) && draft.excencionesSeleccionadas.length > 0
+        ? draft.excencionesSeleccionadas.map((e) => e.trim().toUpperCase())
+        : ["SIN_EXENCIONES"],
 
     // ── Defaults ─────────────────────────────────────────────────────────────
     zonaHoraria: "America/Bogota",
@@ -107,8 +109,27 @@ function buildMicroservicioPayload(draft: ConfiguracionCompletaDraft): Record<st
       .replace(/-/g, "_")
   }
 
+  // Modelos de candidatura seleccionados (pueden ser varios para ME-03)
+  const modelosCandidatura = (draft.modelosCandidatura ?? []).map((m) => m.toUpperCase())
+  if (modelosCandidatura.length > 0) {
+    payload.modelosCandidatura = modelosCandidatura
+  }
+
   if (codigoMetodo === "ME_04") {
     payload.criterioEliminacion = "ELIMINACION_ITERATIVA"
+  }
+
+  // Configuracion especifica para elecciones legislativas (Senado + Camara)
+  if ((draft.tipoEleccion ?? "").toUpperCase() === "LEGISLATIVA") {
+    if (draft.configuracionSenado) {
+      payload.configuracionSenado = draft.configuracionSenado
+    }
+    if (draft.configuracionCamara && draft.configuracionCamara.length > 0) {
+      payload.configuracionCamara = draft.configuracionCamara
+    }
+    if (draft.configuracionCamaraEspeciales && draft.configuracionCamaraEspeciales.length > 0) {
+      payload.configuracionCamaraEspeciales = draft.configuracionCamaraEspeciales
+    }
   }
 
   return payload
