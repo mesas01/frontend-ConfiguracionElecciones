@@ -1,16 +1,14 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { Eye, EyeOff, Lock, User } from "lucide-react"
 import { login } from "../services/authService"
 
 export default function Login() {
-  const navigate = useNavigate()
-
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const hasError = Boolean(error)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,10 +22,8 @@ export default function Login() {
     setLoading(true)
     try {
       await login({ username: username.trim(), password })
-      navigate("/configuracion/parametros-base")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión")
-    } finally {
       setLoading(false)
     }
   }
@@ -48,16 +44,12 @@ export default function Login() {
             </p>
           </div>
         </div>
-
-        {/* Placeholder avatar */}
         <div className="w-8 h-8 rounded-full bg-gray-200" />
       </header>
 
       {/* Center card */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
-
-          {/* Card */}
           <div className="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-10">
 
             {/* Icon + title */}
@@ -86,7 +78,6 @@ export default function Login() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="usuario@registraduria.gov.co"
-                    translate="no"
                     className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-transparent"
                   />
                 </div>
@@ -107,7 +98,6 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    translate="no"
                     className="w-full border border-gray-300 rounded-lg pl-9 pr-10 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-transparent"
                   />
                   <button
@@ -124,9 +114,11 @@ export default function Login() {
 
               {/* Error message */}
               <div
-                className={error
-                  ? "flex items-start gap-2 bg-red-50 border border-red-200 text-red-600 rounded-lg px-3 py-2.5 text-xs"
-                  : "flex items-start gap-2 border border-transparent text-transparent rounded-lg px-3 py-2.5 text-xs pointer-events-none select-none"}
+                className={`min-h-10 flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs transition ${
+                  hasError
+                    ? "border border-red-200 bg-red-50 text-red-600 opacity-100"
+                    : "border border-transparent bg-transparent text-transparent opacity-0"
+                }`}
                 aria-live="polite"
               >
                 <span className="mt-px flex-shrink-0">&#9888;</span>
@@ -137,21 +129,18 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                translate="no"
                 className="w-full bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white font-semibold rounded-lg py-2.5 text-sm transition mt-1 flex items-center justify-center gap-2"
               >
                 <span
-                  className={`w-4 h-4 rounded-full border-2 border-white border-t-transparent ${loading ? "animate-spin opacity-100" : "opacity-0"}`}
-                  aria-hidden="true"
+                  className={`w-4 h-4 border-2 border-white border-t-transparent rounded-full ${loading ? "animate-spin opacity-100" : "opacity-0"}`}
+                  aria-hidden={!loading}
                 />
-                <span>{loading ? "Verificando..." : "Ingresar al Sistema"}</span>
+                <span>{loading ? "Verificando credenciales..." : "Ingresar al Sistema"}</span>
               </button>
             </form>
 
-
           </div>
 
-          {/* Footer note */}
           <p className="text-center text-xs text-gray-400 mt-4">
             Acceso restringido a funcionarios autorizados — República de Colombia
           </p>

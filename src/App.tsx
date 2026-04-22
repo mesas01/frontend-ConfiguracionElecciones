@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import Login from "./pages/Login"
+import Callback from "./pages/Callback"
 import ParametrosBase from "./pages/ParametrosBase"
 import MetodoElectoralReglas from "./pages/MetodoElectoralReglas"
 import CircunscripcionesElegibilidad from "./pages/CircunscripcionesElegibilidad"
@@ -9,8 +10,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Ruta pública */}
+        {/* Rutas públicas */}
         <Route path="/login" element={<Login />} />
+        <Route path="/callback" element={<Callback />} />
 
         {/* Rutas protegidas — requieren JWT válido */}
         <Route element={<ProtectedRoute />}>
